@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -109,3 +110,31 @@ var (
 	// is higher than the balance of the sender's account.
 	ErrSenderInsufficientFunds = errors.New("fee delegation: insufficient sender's funds for value")
 )
+
+type MaxCheckpointLengthExceededError struct {
+	Start uint64
+	End   uint64
+}
+
+func (e *MaxCheckpointLengthExceededError) Error() string {
+	return fmt.Sprintf(
+		"Start: %d and end block: %d exceed max allowed checkpoint length: %d",
+		e.Start,
+		e.End,
+		MaxCheckpointLength,
+	)
+}
+
+type InvalidStartEndBlockError struct {
+	Start         uint64
+	End           uint64
+	CurrentHeader uint64
+}
+
+func (e *InvalidStartEndBlockError) Error() string {
+	return fmt.Sprintf(
+		"Invalid parameters start: %d and end block: %d params",
+		e.Start,
+		e.End,
+	)
+}

@@ -331,3 +331,7 @@ func (b *LesApiBackend) StateAtBlock(ctx context.Context, block *types.Block, re
 func (b *LesApiBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
 	return b.eth.stateAtTransaction(ctx, block, txIndex, reexec)
 }
+
+func (b *LesApiBackend) GetRootHash(start uint64, end uint64) (string, error) {
+	return b.eth.ApiBackend.GetRootHash(start, end)
+}

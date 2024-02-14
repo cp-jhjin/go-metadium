@@ -18,11 +18,16 @@
 package core
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/crypto/sha3"
 	"io"
+	"math"
 	"math/big"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +50,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/xsleonard/go-merkle"
 )
 
 var (
@@ -82,6 +88,8 @@ var (
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errChainStopped         = errors.New("blockchain is stopped")
+
+	MaxCheckpointLength = uint64(math.Pow(2, 15))
 )
 
 const (
@@ -213,6 +221,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+
+	rootHashCache *lru.ARCCache
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -2379,4 +2389,87 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 	defer bc.chainmu.Unlock()
 	_, err := bc.hc.InsertHeaderChain(chain, start, bc.forker)
 	return 0, err
+}
+
+func (bc *BlockChain) initializeRootHashCache() error {
+	var err error
+	if bc.rootHashCache == nil {
+		bc.rootHashCache, err = lru.NewARC(10)
+	}
+
+	return err
+}
+
+func getRootHashKey(start uint64, end uint64) string {
+	return strconv.FormatUint(start, 10) + "-" + strconv.FormatUint(end, 10)
+}
+
+// GetRootHash returns the merkle root of the start to end block headers
+func (bc *BlockChain) GetRootHash(start uint64, end uint64) (string, error) {
+	if err := bc.initializeRootHashCache(); err != nil {
+		return "", err
+	}
+
+	key := getRootHashKey(start, end)
+
+	if root, known := bc.rootHashCache.Get(key); known {
+		return root.(string), nil
+	}
+
+	length := end - start + 1
+
+	if length > MaxCheckpointLength {
+		return "", &MaxCheckpointLengthExceededError{start, end}
+	}
+
+	currentHeaderNumber := bc.CurrentHeader().Number.Uint64()
+
+	if start > end || end > currentHeaderNumber {
+		return "", &InvalidStartEndBlockError{Start: start, End: end, CurrentHeader: currentHeaderNumber}
+	}
+
+	blockHeaders := make([]*types.Header, end-start+1)
+	wg := new(sync.WaitGroup)
+	concurrent := make(chan bool, 20)
+
+	for i := start; i <= end; i++ {
+		wg.Add(1)
+		concurrent <- true
+
+		go func(number uint64) {
+			blockHeaders[number-start] = bc.GetHeaderByNumber(number)
+
+			<-concurrent
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	close(concurrent)
+
+	headers := make([][32]byte, nextPowerOfTwo(length))
+
+	for i := 0; i < len(blockHeaders); i++ {
+		blockHeader := blockHeaders[i]
+		header := crypto.Keccak256(appendBytes32(
+			blockHeader.Number.Bytes(),
+			new(big.Int).SetUint64(blockHeader.Time).Bytes(),
+			blockHeader.TxHash.Bytes(),
+			blockHeader.ReceiptHash.Bytes(),
+		))
+
+		var arr [32]byte
+
+		copy(arr[:], header)
+		headers[i] = arr
+	}
+
+	tree := merkle.NewTreeWithOpts(merkle.TreeOptions{EnableHashSorting: false, DisableHashLeaves: true})
+	if err := tree.Generate(convert(headers), sha3.NewLegacyKeccak256()); err != nil {
+		return "", err
+	}
+
+	root := hex.EncodeToString(tree.Root().Hash)
+	bc.rootHashCache.Add(key, root)
+
+	return root, nil
 }

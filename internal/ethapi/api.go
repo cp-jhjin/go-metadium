@@ -1516,6 +1516,10 @@ func (s *PublicBlockChainAPI) CreateAccessList(ctx context.Context, args Transac
 	return result, nil
 }
 
+func (s *PublicBlockChainAPI) GetRootHash(start uint64, end uint64) (string, error) {
+	return s.b.GetRootHash(start, end)
+}
+
 // AccessList creates an access list for the given transaction.
 // If the accesslist creation fails an error is returned.
 // If the transaction itself fails, an vmErr is returned.

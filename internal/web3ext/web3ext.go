@@ -702,6 +702,12 @@ web3._extend({
 			call: 'eth_signRawFeeDelegateTransaction',
 			params: 2,
 		}),
+		new web3._extend.Method({
+			name: 'GetRootHash',
+			call: 'eth_getRootHash',
+			params: 2,
+			inputFormatter: [null, null],
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
