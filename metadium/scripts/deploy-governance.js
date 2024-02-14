@@ -332,7 +332,7 @@ var GovernanceDeployer = new function() {
             data.env.stakingMin || 1500000000000000000000000,
             data.env.stakingMax || 1500000000000000000000000,
             data.env.MaxIdleBlockInterval || 5,
-            data.env.blockCreationTime || 2000,
+            data.env.blockCreationTime || 1000,
             // mint amount: 1 meta
             data.env.blockRewardAmount || web3.toWei(1, 'ether'),
             // tip: 80 gwei
