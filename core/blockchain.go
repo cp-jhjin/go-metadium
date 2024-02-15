@@ -89,7 +89,7 @@ var (
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errChainStopped         = errors.New("blockchain is stopped")
 
-	MaxCheckpointLength = uint64(math.Pow(2, 15))
+	MaxCheckpointLength = uint64(math.Pow(2, 17))
 )
 
 const (
